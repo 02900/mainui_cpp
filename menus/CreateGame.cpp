@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "Action.h"
 #include "YesNoMessageBox.h"
 #include "Table.h"
+#include "SpinControl.h"
+#include "StringArrayModel.h"
 
 #define ART_BANNER		"gfx/shell/head_creategame"
 
@@ -81,6 +83,7 @@ public:
 	CMenuField	hostName;
 	CMenuField	password;
 	CMenuCheckBox   nat;
+	CMenuSpinControl gameMode; // Normal / Free-for-all / Team Deathmatch
 
 	// newgame prompt dialog
 	CMenuYesNoMessageBox msgBox;
@@ -144,6 +147,14 @@ void CMenuCreateGame::Begin( CMenuBaseItem *pSelf, void *pExtra )
 	char cmd[1024];
 	snprintf( cmd, sizeof( cmd ), "exec %s\n", listenservercfg );
 	EngFuncs::ClientCmd( true, cmd );
+
+	// apply the selected game mode (overrides the listenserver defaults set above)
+	switch( (int)menu->gameMode.GetCurrentValue() )
+	{
+	case 1:  EngFuncs::ClientCmd( true, "exec dm.cfg\n" );     break; // Free-for-all
+	case 2:  EngFuncs::ClientCmd( true, "exec tdm.cfg\n" );    break; // Team Deathmatch
+	default: EngFuncs::ClientCmd( true, "exec dm_off.cfg\n" ); break; // Normal (reset DM rules)
+	}
 
 	// dirty listenserver config form old xash may rewrite maxplayers
 	menu->maxClients.WriteCvar();
@@ -288,6 +299,16 @@ void CMenuCreateGame::_Init( void )
 	});
 	password.LinkCvar( "sv_password" );
 
+	static const char *gameModeStr[] =
+	{
+		L( "Normal" ),
+		L( "Free-for-all" ),
+		L( "Team Deathmatch" ),
+	};
+	static CStringArrayModel gameModeModel( gameModeStr, V_ARRAYSIZE( gameModeStr ));
+	gameMode.szName = L( "Game mode" );
+	gameMode.Setup( &gameModeModel );
+
 	msgBox.onPositive = Begin;
 	msgBox.SetMessage( L( "Starting a new game will exit any current game, OK to exit?" ) );
 	msgBox.Link( this );
@@ -296,6 +317,7 @@ void CMenuCreateGame::_Init( void )
 	AddItem( hostName );
 	AddItem( maxClients );
 	AddItem( password );
+	AddItem( gameMode );
 	AddItem( nat );
 	AddItem( mapsList );
 }
@@ -313,6 +335,7 @@ void CMenuCreateGame::_VidInit()
 	hostName.SetRect( 350, 260, 205, 32 );
 	maxClients.SetRect( 350, 360, 205, 32 );
 	password.SetRect( 350, 460, 205, 32 );
+	gameMode.SetRect( 350, 560, 205, 32 );
 }
 
 void CMenuCreateGame::Show()
