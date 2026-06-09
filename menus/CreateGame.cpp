@@ -84,6 +84,8 @@ public:
 	CMenuField	password;
 	CMenuCheckBox   nat;
 	CMenuSpinControl gameMode; // Normal / Free-for-all / Team Deathmatch
+	CMenuField       bots;            // bot count (0 = none) -> bot_quota
+	CMenuSpinControl botDifficulty;   // Easy / Normal / Hard / Expert -> bot_difficulty
 
 	// newgame prompt dialog
 	CMenuYesNoMessageBox msgBox;
@@ -155,6 +157,12 @@ void CMenuCreateGame::Begin( CMenuBaseItem *pSelf, void *pExtra )
 	case 2:  EngFuncs::ClientCmd( true, "exec tdm.cfg\n" );    break; // Team Deathmatch
 	default: EngFuncs::ClientCmd( true, "exec dm_off.cfg\n" ); break; // Normal (reset DM rules)
 	}
+
+	// apply bot settings AFTER the configs above so they aren't overridden; the bot manager
+	// fills to bot_quota when the map starts. bot_quota 0 = no bots.
+	menu->bots.WriteCvar();
+	menu->botDifficulty.WriteCvar();
+	EngFuncs::ClientCmd( true, "bot_quota_mode normal; bot_auto_vacate 0\n" );
 
 	// dirty listenserver config form old xash may rewrite maxplayers
 	menu->maxClients.WriteCvar();
@@ -309,6 +317,30 @@ void CMenuCreateGame::_Init( void )
 	gameMode.szName = L( "Game mode" );
 	gameMode.Setup( &gameModeModel );
 
+	bots.iMaxLength = 2;
+	bots.bNumbersOnly = true;
+	bots.szName = L( "Bots" );
+	SET_EVENT_MULTI( bots.onCvarGet,
+	{
+		CMenuField *self = (CMenuField*)pSelf;
+		self->SetBuffer( EngFuncs::GetCvarString( self->CvarName() ) );
+		if( self->GetBuffer()[0] == 0 )
+			self->SetBuffer( "5" );
+	});
+	bots.LinkCvar( "bot_quota" );
+
+	static const char *botDiffStr[] =
+	{
+		L( "Easy" ),
+		L( "Normal" ),
+		L( "Hard" ),
+		L( "Expert" ),
+	};
+	static CStringArrayModel botDiffModel( botDiffStr, V_ARRAYSIZE( botDiffStr ));
+	botDifficulty.szName = L( "Bot difficulty" );
+	botDifficulty.Setup( &botDiffModel );
+	botDifficulty.LinkCvar( "bot_difficulty", CMenuEditable::CVAR_VALUE );
+
 	msgBox.onPositive = Begin;
 	msgBox.SetMessage( L( "Starting a new game will exit any current game, OK to exit?" ) );
 	msgBox.Link( this );
@@ -318,6 +350,8 @@ void CMenuCreateGame::_Init( void )
 	AddItem( maxClients );
 	AddItem( password );
 	AddItem( gameMode );
+	AddItem( bots );
+	AddItem( botDifficulty );
 	AddItem( nat );
 	AddItem( mapsList );
 }
@@ -332,10 +366,12 @@ void CMenuCreateGame::_VidInit()
 
 	mapsList.SetRect( 590, 230, -20, 465 );
 
-	hostName.SetRect( 350, 260, 205, 32 );
-	maxClients.SetRect( 350, 360, 205, 32 );
-	password.SetRect( 350, 460, 205, 32 );
-	gameMode.SetRect( 350, 560, 205, 32 );
+	hostName.SetRect( 350, 245, 205, 32 );
+	maxClients.SetRect( 350, 320, 205, 32 );
+	password.SetRect( 350, 395, 205, 32 );
+	gameMode.SetRect( 350, 470, 205, 32 );
+	bots.SetRect( 350, 545, 205, 32 );
+	botDifficulty.SetRect( 350, 620, 205, 32 );
 }
 
 void CMenuCreateGame::Show()
@@ -346,6 +382,8 @@ void CMenuCreateGame::Show()
 	maxClients.UpdateCvar( true );
 	password.UpdateCvar( true );
 	nat.UpdateCvar( true );
+	bots.UpdateCvar( true );
+	botDifficulty.UpdateCvar( true );
 
 	CMenuBaseWindow::Show();
 }
